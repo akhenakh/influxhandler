@@ -29,7 +29,9 @@ type Middleware struct {
 	ch chan (*client.Series)
 	// t is the last time we have flushed data
 	lastF time.Time
-	// protects the series
+	// mutex to protect the series, a FIFO channel is not safe
+	// as the series may be dequeued by the timeout from another goroutine
+	// TODO: could it be avoided by sending nil ch from the timeout ?
 	sync.Mutex
 }
 
