@@ -38,3 +38,5 @@ http.ListenAndServe(":8080", handler)
 ```
 
 ![demo](https://github.com/akhenakh/martini-influxdb/raw/master/img/graph.png)
+
+Status: not finished yet
