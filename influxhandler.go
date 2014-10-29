@@ -50,23 +50,23 @@ func NewBuferedHandler(name string, c *client.Client, config Config) *Middleware
 		series: make([]*client.Series, config.MaxSeriesCount),
 		lastF:  time.Now()}
 
-	var timeout chan bool
-	if m.config.MaxDuration != 0 {
-		timeout = make(chan bool, 1)
-		go func() {
-			time.Sleep(m.config.MaxDuration)
-			timeout <- true
-		}()
-	}
-
 	go func() {
 		scopy := make([]*client.Series, m.config.MaxSeriesCount)
+		var timeout chan bool
+
+		if m.config.MaxDuration != 0 {
+			go func() {
+				time.Sleep(m.config.MaxDuration)
+				timeout <- true
+			}()
+		}
 
 		for {
 			select {
 			case s := <-m.ch:
 
 				m.Lock()
+				defer m.Unlock()
 				m.series = append(m.series, s)
 				if len(m.series) >= m.config.MaxSeriesCount {
 					copy(scopy, m.series)
@@ -79,13 +79,12 @@ func NewBuferedHandler(name string, c *client.Client, config Config) *Middleware
 					m.lastF = time.Now()
 					m.series = make([]*client.Series, config.MaxSeriesCount)
 					copy(scopy, m.series)
-					m.Unlock()
 				}
-				m.Unlock()
 
-			case <-time.After(m.config.MaxDuration):
+			case <-timeout:
 				// check if we need to flush
 				m.Lock()
+				defer m.Unlock()
 				if len(m.series) > 0 && time.Since(m.lastF) > m.config.MaxDuration {
 					fmt.Println("flush MaxDuration")
 					err := m.client.WriteSeries(m.series)
@@ -94,7 +93,6 @@ func NewBuferedHandler(name string, c *client.Client, config Config) *Middleware
 					}
 					m.lastF = time.Now()
 					m.series = make([]*client.Series, config.MaxSeriesCount)
-					m.Unlock()
 				}
 			}
 		}
