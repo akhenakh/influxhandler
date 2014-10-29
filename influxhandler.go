@@ -52,7 +52,7 @@ func NewBuferedHandler(name string, c *client.Client, config Config) *Middleware
 
 	go func() {
 		scopy := make([]*client.Series, m.config.MaxSeriesCount)
-		var timeout chan bool
+		timeout := make(chan bool, 1)
 
 		if m.config.MaxDuration != 0 {
 			go func() {
@@ -64,7 +64,6 @@ func NewBuferedHandler(name string, c *client.Client, config Config) *Middleware
 		for {
 			select {
 			case s := <-m.ch:
-
 				m.Lock()
 				defer m.Unlock()
 				m.series = append(m.series, s)
