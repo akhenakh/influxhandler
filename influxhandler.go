@@ -24,14 +24,14 @@ type Middleware struct {
 	client *client.Client
 	// Options
 	config Config
-	// lock protects the series
-	lock sync.Mutex
 	// series stores the Series before flushing
 	series []*client.Series
 	// c is a channel fed with new series
 	ch chan (*client.Series)
 	// t is the last time we have flushed data
-	t time.Time
+	lastF time.Time
+	// protects the series
+	sync.Mutex
 }
 
 // NewHandler create a new Handler that will log every http request into InfluxDB
@@ -46,10 +46,9 @@ func NewBuferedHandler(name string, c *client.Client, config Config) *Middleware
 	m := &Middleware{name: name,
 		client: c,
 		config: config,
-		lock:   sync.Mutex{},
 		ch:     make(chan *client.Series),
 		series: make([]*client.Series, config.MaxSeriesCount),
-		t:      time.Now()}
+		lastF:  time.Now()}
 
 	var timeout chan bool
 	if m.config.MaxDuration != 0 {
@@ -60,13 +59,47 @@ func NewBuferedHandler(name string, c *client.Client, config Config) *Middleware
 		}()
 	}
 
-	select {
-	case <-m.ch:
-		// a read from ch has occurred
-	case <-time.After(m.config.MaxDuration):
-		// check if we need to flush
+	go func() {
+		scopy := make([]*client.Series, m.config.MaxSeriesCount)
 
-	}
+		for {
+			select {
+			case s := <-m.ch:
+
+				m.Lock()
+				m.series = append(m.series, s)
+				if len(m.series) >= m.config.MaxSeriesCount {
+					copy(scopy, m.series)
+					go func() {
+						err := m.client.WriteSeries(scopy)
+						if err != nil {
+							log.Println("influxhandler", err)
+						}
+					}()
+					m.lastF = time.Now()
+					m.series = make([]*client.Series, config.MaxSeriesCount)
+					copy(scopy, m.series)
+					m.Unlock()
+				}
+				m.Unlock()
+
+			case <-time.After(m.config.MaxDuration):
+				// check if we need to flush
+				m.Lock()
+				if len(m.series) > 0 && time.Since(m.lastF) > m.config.MaxDuration {
+					fmt.Println("flush MaxDuration")
+					err := m.client.WriteSeries(m.series)
+					if err != nil {
+						log.Println("influxhandler", err)
+					}
+					m.lastF = time.Now()
+					m.series = make([]*client.Series, config.MaxSeriesCount)
+					m.Unlock()
+				}
+			}
+		}
+
+	}()
 
 	return m
 }
@@ -80,6 +113,7 @@ func (m *Middleware) WriteSeries(s *client.Series) {
 		}
 		return
 	}
+	m.ch <- s
 }
 
 // Handler logs the request as it goes in and the response as it goes out
@@ -91,7 +125,6 @@ func (m *Middleware) Handler(h http.Handler) http.Handler {
 		}
 		start := time.Now()
 		h.ServeHTTP(w, req)
-		fmt.Println(w.Header())
 		t := time.Since(start)
 		s := &client.Series{
 			Name:    "resp_time",
