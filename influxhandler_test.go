@@ -9,16 +9,16 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
-var testHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+var demoHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("test"))
 })
 
 func TestNoClientHandler(t *testing.T) {
-	m := NewHandler("test.resp_time", nil)
+	h := NewHandler("test.resp_time", nil)
 	res := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "http://localhost/", nil)
 
-	m.Handler(testHandler).ServeHTTP(res, req)
+	h.Handler(demoHandler).ServeHTTP(res, req)
 }
 
 func TestHandler(t *testing.T) {
@@ -33,11 +33,11 @@ func TestHandler(t *testing.T) {
 		t.Errorf("Can't connect to influxdb", err)
 	}
 
-	m := NewHandler("test.resp_time", client)
+	h := NewHandler("test.resp_time", client)
 	res := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "http://localhost/", nil)
 
-	m.Handler(testHandler).ServeHTTP(res, req)
+	h.Handler(demoHandler).ServeHTTP(res, req)
 }
 
 func TestHandlerWithMaxTime(t *testing.T) {
@@ -52,13 +52,13 @@ func TestHandlerWithMaxTime(t *testing.T) {
 		t.Errorf("Can't connect to influxdb", err)
 	}
 
-	m := NewBuferedHandler("test.resp_time", client, Config{MaxDuration: 50 * time.Millisecond})
+	h := NewBuferedHandler("test.resp_time", client, Config{MaxDuration: 50 * time.Millisecond})
 	res := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "http://localhost/", nil)
 
 	time.Sleep(100 * time.Millisecond)
 
-	m.Handler(testHandler).ServeHTTP(res, req)
+	h.Handler(demoHandler).ServeHTTP(res, req)
 
 	time.Sleep(100 * time.Millisecond)
 
