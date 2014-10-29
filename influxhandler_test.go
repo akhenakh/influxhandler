@@ -60,6 +60,6 @@ func TestHandlerWithMaxTime(t *testing.T) {
 
 	m.Handler(testHandler).ServeHTTP(res, req)
 
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 }

@@ -1,7 +1,6 @@
 package influxhandler
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -54,20 +53,22 @@ func NewBuferedHandler(name string, c *client.Client, config Config) *Middleware
 		scopy := make([]*client.Series, m.config.MaxSeriesCount)
 		timeout := make(chan bool, 1)
 
-		if m.config.MaxDuration != 0 {
-			go func() {
-				time.Sleep(m.config.MaxDuration)
-				timeout <- true
-			}()
-		}
-
 		for {
+
+			if m.config.MaxDuration != 0 {
+				go func() {
+					time.Sleep(m.config.MaxDuration)
+					timeout <- true
+				}()
+			}
+
 			select {
 			case s := <-m.ch:
 				m.Lock()
-				defer m.Unlock()
+
 				m.series = append(m.series, s)
-				if len(m.series) >= m.config.MaxSeriesCount {
+
+				if len(m.series) >= m.config.MaxSeriesCount && m.config.MaxDuration != 0 && time.Since(m.lastF) < m.config.MaxDuration {
 					copy(scopy, m.series)
 					go func() {
 						err := m.client.WriteSeries(scopy)
@@ -79,20 +80,25 @@ func NewBuferedHandler(name string, c *client.Client, config Config) *Middleware
 					m.series = make([]*client.Series, config.MaxSeriesCount)
 					copy(scopy, m.series)
 				}
+				m.Unlock()
 
 			case <-timeout:
 				// check if we need to flush
 				m.Lock()
-				defer m.Unlock()
+
 				if len(m.series) > 0 && time.Since(m.lastF) > m.config.MaxDuration {
-					fmt.Println("flush MaxDuration")
-					err := m.client.WriteSeries(m.series)
-					if err != nil {
-						log.Println("influxhandler", err)
-					}
+					copy(scopy, m.series)
+					go func() {
+						err := m.client.WriteSeries(scopy)
+						if err != nil {
+							log.Println("influxhandler", err)
+						}
+					}()
 					m.lastF = time.Now()
 					m.series = make([]*client.Series, config.MaxSeriesCount)
+					copy(scopy, m.series)
 				}
+				m.Unlock()
 			}
 		}
 
