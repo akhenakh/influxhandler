@@ -52,7 +52,7 @@ func TestHandlerWithMaxTime(t *testing.T) {
 		t.Errorf("Can't connect to influxdb", err)
 	}
 
-	h := NewBuferedHandler("test.resp_time", client, Config{MaxDuration: 50 * time.Millisecond})
+	h := NewBufferedHandler("test.resp_time", client, Config{MaxDuration: 50 * time.Millisecond})
 	res := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "http://localhost/", nil)
 

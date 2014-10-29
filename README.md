@@ -29,7 +29,7 @@ Then query for `code` as status code, `duration`, `url` and `method`
 SELECT duration FROM resp_time WHERE code = 200
 ```
 
-Note: NewHandler is using the REST api on every requests which is probably not what you want, on heavy traffic prefer NewBuferedHandler which will queue the series then flush them.
+Note: NewHandler is using the REST api on every requests which is probably not what you want, on heavy traffic prefer NewBufferedHandler which will queue the series then flush them.
 
 ```golang
 h := influxhandler.NewBufferedHandler("myhostname.resp_time", client, influxhandler.Config{MaxSeriesCount: 1000, MaxDuration: 1 * time.Minute})

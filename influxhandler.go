@@ -21,15 +21,15 @@ type Middleware struct {
 	name string
 	// Client is the InfluxDB connection client
 	client *client.Client
-	// Options
+	// config is a Config struct to configure the BufferedHandler behaviour
 	config Config
 	// series stores the Series before flushing
 	series []*client.Series
-	// c is a channel fed with new series
+	// ch is a channel fed with new series
 	ch chan (*client.Series)
-	// t is the last time we have flushed data
+	// lastF the last time data went flushed
 	lastF time.Time
-	// mutex to protect the series, a FIFO channel is not safe
+	// mutex to protect the series, a FIFO channel is not safe enough
 	// as the series may be dequeued by the timeout from another goroutine
 	// TODO: could it be avoided by sending nil ch from the timeout ?
 	sync.Mutex
@@ -38,12 +38,12 @@ type Middleware struct {
 // NewHandler create a new Handler that will log every http request into InfluxDB
 // Each request generate a flush to the DB
 func NewHandler(name string, c *client.Client) *Middleware {
-	return NewBuferedHandler(name, c, Config{})
+	return NewBufferedHandler(name, c, Config{})
 }
 
-// NewBuferedHandler create a new Handler that will log every http request into InfluxDB
+// NewBufferedHandler create a new Handler that will log every http request into InfluxDB
 // Series will be flushed according to config options
-func NewBuferedHandler(name string, c *client.Client, config Config) *Middleware {
+func NewBufferedHandler(name string, c *client.Client, config Config) *Middleware {
 	m := &Middleware{name: name,
 		client: c,
 		config: config,
